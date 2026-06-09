@@ -17,7 +17,8 @@ df = get_data(ticker)
 
 df = add_indicators(df)
 
-X, y = prepare_data(df)
+# Dates is unused, I updated prepare_data so I'm putting it here so I can retrain/save the day3 model
+X, y, dates = prepare_data(df)
 
 # -------------------
 
@@ -91,11 +92,16 @@ for epoch in range(epochs):
 
 # ------------------
 
+# Save the model
+torch.save(model.state_dict(), "model.pth")
+
+# ------------------
+
 # Eval
 model.eval()
 with torch.no_grad():
     predictions = torch.sigmoid(model(X_test))  # Added sigmoid here because of weighted loss
-    
+
     print(f"Min prediction: {predictions.min().item():.4f}")
     print(f"Max prediction: {predictions.max().item():.4f}")
     print(f"Mean prediction: {predictions.mean().item():.4f}")
