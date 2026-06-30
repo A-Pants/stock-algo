@@ -16,6 +16,8 @@ df = add_indicators(df)
 
 X, y, dates = prepare_data(df)
 
+input_size = X.shape[2]
+
 X_train, X_val, X_test, y_train, y_val, y_test, dates_list = split_data(X, y, dates, 0.8)
 
 X_test = torch.tensor(X_test, dtype=torch.float32)
@@ -23,7 +25,7 @@ X_test = torch.tensor(X_test, dtype=torch.float32)
 # ------------------
 
 # Model
-model = LSTMModel()
+model = LSTMModel(input_size = input_size)
 
 # Load weights
 model.load_state_dict(torch.load("model.pth"))
@@ -35,7 +37,7 @@ model.eval()
 with torch.no_grad():
     predictions = torch.sigmoid(model(X_test))
 
-    predicted_labels = (predictions > 0.3).float()
+    predicted_labels = (predictions > 0.19930227).float()
 
     predictions_np = predictions.numpy()
     predicted_labels_np = predicted_labels.numpy()
@@ -123,7 +125,7 @@ profit[buys] = 1000 * profit_ratio.values
 profit = profit.cumsum()
 
 buy_and_hold_ratio = 1000 / start_date["Open"].iloc[0]
-buy_and_hold_profit = start_date["Close"] * buy_and_hold_ratio
+buy_and_hold_profit = start_date["Close"] * buy_and_hold_ratio - 1000
 
 axs[5].plot(dates_list, profit, color = 'blue', label = 'P&L')
 axs[5].plot(buy_and_hold_profit, color = 'pink', label = 'Buy and Hold Profit')

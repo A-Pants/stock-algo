@@ -2,11 +2,11 @@ import torch
 import torch.nn as nn
 import ta
 
-from torch.utils.data import DataLoader, TensorDataset
+from torch.utils.data import DataLoader, TensorDataset, WeightedRandomSampler
 from sklearn.metrics import classification_report
 
 from data import get_data
-from features import prepare_data, add_indicators
+from features import prepare_data, add_indicators, calculate_weights, calculate_prediction_threshold
 from model import LSTMModel
 
 # -------------------
@@ -20,6 +20,8 @@ df = add_indicators(df)
 # Dates is unused, I updated prepare_data so I'm putting it here so I can retrain/save the day3 model
 X, y, dates = prepare_data(df)
 
+input_size = X.shape[2]
+
 # -------------------
 
 # Split the data
@@ -29,10 +31,13 @@ X, y, dates = prepare_data(df)
 # Train/Test split not using sklearn
 split = int(len(X) * 0.8)
 
+# Numpy arrays
 X_train_np = X[:split]
 X_test_np = X[split:]
 y_train_np = y[:split]
 y_test_np = y[split:]
+dates_train_np = dates[:split]
+dates_test_np = dates[split:]
 
 X_train = torch.tensor(X_train_np, dtype=torch.float32)
 X_test = torch.tensor(X_test_np, dtype=torch.float32)
@@ -44,12 +49,16 @@ y_test = y_test.unsqueeze(1)
 
 # -------------------
 
+# Weigh the data
+sample_weights = calculate_weights(dates_train_np, decay_rate = 0.0005)  # Decay rate should be between 0.0005 and 0.001
+sampler = WeightedRandomSampler(weights = sample_weights, num_samples = len(dates_train_np), replacement = True)
+
 # Data Loader
 train_dataset = TensorDataset(X_train, y_train)
-train_loader = DataLoader(train_dataset, batch_size = 32, shuffle = True)
+train_loader = DataLoader(train_dataset, sampler = sampler, batch_size = 32)
 
 # Model
-model = LSTMModel()
+model = LSTMModel(input_size = input_size)
 
 # Loss
 pos_weight = torch.tensor([2.0])
@@ -105,6 +114,12 @@ with torch.no_grad():
     print(f"Min prediction: {predictions.min().item():.4f}")
     print(f"Max prediction: {predictions.max().item():.4f}")
     print(f"Mean prediction: {predictions.mean().item():.4f}")
+
+    predictions_np = predictions.squeeze().numpy()
+
+    best_threshold, best_f1_score = calculate_prediction_threshold(y_test_np, predictions_np)
+
+    print(best_threshold, best_f1_score)
 
     predicted_labels = (predictions > 0.3).float()
     accuracy = (predicted_labels == y_test).float().mean().item()

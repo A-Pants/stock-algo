@@ -13,4 +13,4 @@ class LSTMModel(nn.Module):
     def forward(self, x):
         out, _ = self.lstm(x)
         out = self.fc(out[:, -1, :])
-        return out  # Weighted the loss, self.sigmoid(out) no longer needed
+        return out

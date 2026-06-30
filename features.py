@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import ta
 from sklearn.preprocessing import MinMaxScaler
+from sklearn.metrics import precision_recall_curve
 
 # ------------------
 
@@ -23,6 +24,11 @@ def add_indicators(df):
     df["bb_high"] = bb.bollinger_hband()
     df["bb_low"] = bb.bollinger_lband()
 
+    # ATR
+    atr = ta.volatility.AverageTrueRange(df["High"], df["Low"], df["Close"], window=14, fillna=False)
+    df["ATR"] = atr.average_true_range()
+    df["ATR"] /= df["Close"]
+
     df.dropna(inplace = True)
 
     return df
@@ -38,7 +44,7 @@ def prepare_data(df, window = 20):
 
     # Features and Labels
     feature_cols = ["Open", "High", "Low", "Close", "Volume", 
-                    "sma_20", "sma_50", "rsi", "macd", "macd_signal", "bb_high", "bb_low"]
+                    "sma_20", "sma_50", "rsi", "macd", "macd_signal", "bb_high", "bb_low", "ATR"]
     
     X_raw = df[feature_cols].values
     y_raw = df["target"].values
@@ -91,3 +97,25 @@ def split_data(X, y, dates, train_test_split, val_size = 0.0):
         y_test_np = y[split:]
 
         return X_train_np, None, X_test_np, y_train_np, None, y_test_np, dates_list
+    
+# ---------------------
+
+def calculate_weights(dates_train, decay_rate):
+    return np.exp(decay_rate * np.arange(len(dates_train)))
+
+# ---------------------
+
+def calculate_prediction_threshold(y_test_np, predictions_np):
+
+    precision, recall, thresholds = precision_recall_curve(y_test_np, predictions_np)
+    precision = precision[:-1]
+    recall = recall[:-1]
+
+    f1_scores = 2 * (precision * recall) / (precision + recall)
+    f1_scores = np.nan_to_num(f1_scores)
+    best_f1_index = np.argmax(f1_scores)
+
+    best_f1_score = f1_scores[best_f1_index]
+    best_threshold = thresholds[best_f1_index]
+
+    return best_threshold, best_f1_score
