@@ -37,7 +37,7 @@ model.eval()
 with torch.no_grad():
     predictions = torch.sigmoid(model(X_test))
 
-    predicted_labels = (predictions > 0.19930227).float()
+    predicted_labels = (predictions > 0.29495555).float()
 
     predictions_np = predictions.numpy()
     predicted_labels_np = predicted_labels.numpy()

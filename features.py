@@ -100,8 +100,8 @@ def split_data(X, y, dates, train_test_split, val_size = 0.0):
     
 # ---------------------
 
-def calculate_weights(dates_train, decay_rate):
-    return np.exp(decay_rate * np.arange(len(dates_train)))
+def calculate_weights(data_length, decay_rate):
+    return np.exp(decay_rate * np.arange(data_length))
 
 # ---------------------
 
