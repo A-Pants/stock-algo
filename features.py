@@ -38,8 +38,8 @@ def add_indicators(df):
 def prepare_data(df, window = 20):
     # Create label: 1 if tommorow's close is higher than today's
     df = df.copy()
-    df["target"] = (df["Close"].shift(-1) > df["Close"] * 1.03).astype(int)
-    # print(df["target"].value_counts(normalize=True))  # Check the split of our data (0 vs 1)
+    df["target"] = (((df["Close"].shift(-10) / df["Close"]) - 1) > 0.05).astype(int)
+    print(df["target"].value_counts(normalize=True))  # Check the split of our data (0 vs 1)
     df.dropna(inplace = True)
 
     # Features and Labels
@@ -105,8 +105,8 @@ def calculate_weights(data_length, decay_rate):
 
 # ---------------------
 
+# Not used anymore since I switched from classification (3% up days) to regression (upward/downward price shift)
 def calculate_prediction_threshold(y_test_np, predictions_np):
-
     precision, recall, thresholds = precision_recall_curve(y_test_np, predictions_np)
     precision = precision[:-1]
     recall = recall[:-1]

@@ -1,5 +1,6 @@
 import torch
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 
 from data import get_data
@@ -37,7 +38,7 @@ model.eval()
 with torch.no_grad():
     predictions = torch.sigmoid(model(X_test))
 
-    predicted_labels = (predictions > 0.29495555).float()
+    predicted_labels = (predictions > 0.3).float()
 
     predictions_np = predictions.numpy()
     predicted_labels_np = predicted_labels.numpy()
@@ -52,8 +53,8 @@ predictions_np = predictions_np.flatten()
 fig, axs = plt.subplots(nrows = 6, ncols = 1, sharex = 'all', gridspec_kw = {"height_ratios": [3, 1, 1, 1, 1, 1]}, 
                         figsize=(20, 16))
 
-start_date = df.loc[dates_list[0]:]
-buys = np.where(predicted_labels_np == 1)[0]
+start_date = df.loc[dates_list[0]:dates_list[-1]]
+buy_signal = np.where(predicted_labels_np == 1)[0]
 up_days = np.where(y_test == 1)[0]
 
 # Price + Bollinger Bands + buy signals + actual 3% up days
@@ -69,12 +70,12 @@ axs[0].plot(dates_list, start_date["Close"], color = 'blue', label = 'Close')
 axs[0].plot(dates_list, start_date["bb_high"], color = 'gray', label = 'BB High')
 axs[0].plot(dates_list, start_date["bb_low"], color = 'gray', label = 'BB Low')
 
-print(f"Total buy signals: {buys.shape[0]}")
+print(f"Total buy signals: {buy_signal.shape[0]}")
 print(f"Total up days: {up_days.shape[0]}")
 print(f"Total test days: {len(dates_list)}")
 
-axs[0].scatter(dates_list[buys], start_date["Close"].iloc[buys], c ='green', label = 'Buy Signal')
-axs[0].scatter(dates_list[up_days], start_date["Close"].iloc[up_days], c ='orange', label = '3% up days')
+axs[0].scatter(dates_list[buy_signal], start_date["Close"].iloc[buy_signal], c ='green', label = 'Buy Signal')
+axs[0].scatter(dates_list[up_days], start_date["Close"].iloc[up_days], c ='orange', label = '5% up in 10 days')
 axs[0].legend()
 
 # ----------------
@@ -119,16 +120,82 @@ axs[4].legend()
 
 # -----------------
 
-profit_ratio = (start_date["Close"].iloc[buys] / start_date["Open"].iloc[buys]) - 1
-profit = np.zeros(len(dates_list))
-profit[buys] = 1000 * profit_ratio.values
-profit = profit.cumsum()
+open_positions = {}
+all_trades = {}
 
-buy_and_hold_ratio = 1000 / start_date["Open"].iloc[0]
-buy_and_hold_profit = start_date["Close"] * buy_and_hold_ratio - 1000
+buys = []
+bank = 10000
+portfolio_value = []
+trade_id = 0
+stale_positions = []
+trade_amount = 500
 
-axs[5].plot(dates_list, profit, color = 'blue', label = 'P&L')
+n_days = len(dates_list)
+
+for i, (date, prediction) in enumerate(zip(dates_list, predictions_np)):
+    
+    asset_value = 0
+    date = pd.to_datetime(date)
+
+    for key, position in open_positions.items(): 
+        days_open = (date - position["entry_date"]).days
+
+        # Exit the trade if held 20+ days, the model predicts negative return, or there are no more trading days (data has run out)
+        if days_open >= 20 or prediction < 0.2 or i+1 == n_days: 
+            stale_positions.append(key)
+
+        # If we arent exiting the trade then we need to count it for total asset value
+        else:
+            entry_price = position["entry_price"]
+            position_size = position["position_size"]
+            exit_price = start_date.loc[date, "Close"]
+
+            current_value = (exit_price / entry_price) * position_size
+            asset_value += current_value
+
+    # Remove losing or old positions
+    for key in stale_positions:
+        entry_price = open_positions[key]["entry_price"]
+        position_size = open_positions[key]["position_size"]
+        exit_price = start_date.loc[date, "Close"]
+
+        sold_value = (exit_price / entry_price) * position_size
+        profit = sold_value - position_size
+
+        all_trades[key] = { **open_positions[key], 
+            "close_date" : date, 
+            "close_price": exit_price, 
+            "profit": profit}
+        
+        bank += sold_value
+        
+        del open_positions[key]
+
+    stale_positions = []
+    
+    if bank >= trade_amount:
+        if prediction > 0.3 and len(open_positions) < 20 and i+1 < n_days:
+            open_positions[trade_id] = {
+                "entry_date": date, 
+                "entry_price": start_date.iloc[i+1, start_date.columns.get_loc('Open')],
+                "position_size": trade_amount,
+            }
+
+            buys.append(date)
+
+            bank -= trade_amount
+            trade_id += 1
+        
+    portfolio_value.append(bank + asset_value)
+
+buy_and_hold_ratio = 10000 / start_date["Open"].iloc[0]
+buy_and_hold_profit = start_date["Close"] * buy_and_hold_ratio
+
+for buy_date in buys:
+    axs[5].axvline(x=buy_date, color='green', alpha=0.3, linewidth=0.5)
+
 axs[5].plot(buy_and_hold_profit, color = 'pink', label = 'Buy and Hold Profit')
+axs[5].plot(dates_list, portfolio_value, color = 'blue', label = 'P&L')
 axs[5].legend()
 
 # -----------------

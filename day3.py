@@ -90,7 +90,6 @@ pos_weight = torch.tensor([2.0]).to(device)
 criterion = nn.BCEWithLogitsLoss(pos_weight = pos_weight)
 
 # Optimizer
-# 0.0001 & 0.001 are too small of steps
 optimizer = torch.optim.Adam(model.parameters(), lr = 0.01)
 
 # -----------------
@@ -111,6 +110,8 @@ for epoch in range(epochs):
 
         # Forward pass
         outputs = model(X_batch)
+
+        # Compute loss
         loss = criterion(outputs, y_batch)
         epoch_loss += loss.item()
 
@@ -134,7 +135,7 @@ torch.save(model.state_dict(), "model.pth")
 # Eval
 model.eval()
 with torch.no_grad():
-    predictions = torch.sigmoid(model(X_test))  # Added sigmoid here because of weighted loss
+    predictions = torch.sigmoid(model(X_test))
 
     print(f"Min prediction: {predictions.min().item():.4f}")
     print(f"Max prediction: {predictions.max().item():.4f}")
